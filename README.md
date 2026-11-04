@@ -2,12 +2,12 @@
 
 `raspberry_pi_camera` ist ein Kameradienst für einen Raspberry Pi. Eine USB-UVC-Kamera wird **einmal** über OpenCV geöffnet und kontinuierlich ausgelesen. Parallel dazu bietet der Raspberry Pi:
 
-- einen **kleinen MJPEG-Live-Stream** für die Überwachung am Windows-PC;
+- einen **kleinen MJPEG-Live-Stream**;
 - **hochaufgelöste Einzelaufnahmen** nach einem GPIO-Trigger oder per HTTP-Anfrage;
 - zwei umschaltbare Aufnahmemodi mit getrennten Verzögerungen: `bed` (Druckbett) und `fill_level` (Füllstand);
 - eine verlustfreie Speicherung der von OpenCV empfangenen Frames als **unkomprimierte RGB-TIFFs**.
 
-Das Projekt wurde zunächst für die **Innomaker U20CAM-1080P** entwickelt. Die später vorgesehene **Raspberry Pi HQ Camera mit CSI-USB-UVC-Adapter** kann ebenfalls über OpenCV angesprochen werden, sofern der Adapter den gewünschten Kameramodus bereitstellt. Die Preview-Auflösung bleibt unabhängig von der Kamera niedrig.
+Das Projekt wurde für die **Innomaker U20CAM-1080P** entwickelt. Die Preview-Auflösung bleibt unabhängig von der Kamera niedrig.
 
 > **Stand:** Entwicklungsprototyp. Kamera- und GPIO-Funktionen müssen auf der tatsächlichen Hardware getestet werden. Der automatische Bildtransfer auf den Windows-PC ist noch nicht implementiert.
 
@@ -31,11 +31,9 @@ raspberry_pi_camera/
 
 - Raspberry Pi mit Raspberry Pi OS / Debian und Zugang zum Paketmanager `apt`.
 - USB-UVC-Kamera, unter Linux z. B. `/dev/video0`.
-- GPIO-Taster an **BCM GPIO 27**, mit der im bisherigen Projekt verwendeten Beschaltung (`pull_up=False`).
+- GPIO-Taster an **BCM GPIO 27**.
 - Für die **erste Einrichtung** Zugang zu den benötigten Paketquellen. **Für den späteren lokalen Betrieb ist keine Internetverbindung erforderlich.**
 - Ein PC im gleichen lokalen Netz für die Live-Vorschau und API-Abfragen.
-
-Es dürfen **nicht gleichzeitig** die alten Skripte `button.py` und `camera.py` laufen, wenn sie ebenfalls die Kamera öffnen.
 
 ## Installation
 
