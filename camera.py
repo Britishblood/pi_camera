@@ -1,3 +1,5 @@
+"""Single owner of the UVC camera; capture frames continuously."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

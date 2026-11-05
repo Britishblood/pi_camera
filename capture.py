@@ -1,3 +1,5 @@
+"""Triggered snapshots with independent delays, 10 s GPIO cooldown, and TIFF saving."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -32,6 +34,7 @@ class CaptureController:
         self.output_dir = Path(output_dir)
         self.delays = {"bed": float(bed_delay_s), "fill_level": float(fill_level_delay_s)}
         self.mode = "bed"
+        self.minimum_cooldown_s = float(cooldown_s)
         self._gpio_blocked_until = float("-inf")
         self._pending = []
         self._serial = 0
@@ -66,20 +69,18 @@ class CaptureController:
         return self.status()
 
     def button_pressed(self):
-        """GPIO callback: schedule a capture with dynamic cooldown."""
-
+        """GPIO callback: schedule work immediately; never sleep or save here."""
         with self._condition:
             now = time.monotonic()
             if now < self._gpio_blocked_until:
                 print("GPIO ignored: cooldown active", flush=True)
                 return False
+            cooldown = max(self.minimum_cooldown_s, *self.delays.values())
+            self._gpio_blocked_until = now + cooldown
             mode = self.mode
             delay = self.delays[mode]
-            # Minimum 10 seconds, otherwise longest configured delay
-            cooldown = max(10.0, self.delays["bed"], self.delays["fill_level"])
-            self._gpio_blocked_until = now + cooldown
             self._enqueue_locked(mode, now + delay)
-        print(f"GPIO: scheduled {mode} in {delay:.2f} s (cooldown: {cooldown:.2f} s)", flush=True)
+        print(f"GPIO: scheduled {mode} in {delay:.2f} s", flush=True)
         return True
 
     def manual_snapshot(self, mode=None):
@@ -162,7 +163,7 @@ class CaptureController:
             return {
                 "mode": self.mode,
                 "delays_s": dict(self.delays),
-                "cooldown_s": max(10.0, *self.delays.values()),
+                "cooldown_s": max(self.minimum_cooldown_s, *self.delays.values()),
                 "cooldown_remaining_s": round(max(0, self._gpio_blocked_until - time.monotonic()), 2),
                 "pending_snapshots": len(self._pending),
                 "queued_saves": self._save_queue.qsize(),
