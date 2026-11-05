@@ -14,7 +14,7 @@ def main():
     parser.add_argument("--height", type=int, default=1080)
     parser.add_argument("--fps", type=int, default=30)
     parser.add_argument("--preview-width", type=int, default=640)
-    parser.add_argument("--preview-fps", type=int, default=5)
+    parser.add_argument("--preview-fps", type=int, default=15)
     parser.add_argument("--bed-delay", type=float, default=2.0)
     parser.add_argument("--fill-delay", type=float, default=5.0)
     parser.add_argument("--output", type=Path, default=Path(__file__).parent / "images")
