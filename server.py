@@ -123,6 +123,14 @@ class CameraService:
                 raise RuntimeError("Camera is stopped")
             return self.capture.manual_snapshot(mode=mode)
 
+    def trigger(self):
+        """Simulate a GPIO button press."""
+        with self.lock:
+            if self.capture is None:
+                raise RuntimeError("Camera is stopped")
+
+            return self.capture.button_pressed()
+
 
 def create_app(service: CameraService, *, preview_width=640, preview_fps=5, jpeg_quality=65, autostart=False):
     token = os.environ.get("PI_CAMERA_TOKEN", "")
@@ -178,6 +186,24 @@ def create_app(service: CameraService, *, preview_width=640, preview_fps=5, jpeg
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/trigger", status_code=202)
+    def trigger(x_api_token: str | None = Header(default=None)):
+        authenticate(x_api_token)
+
+        try:
+            accepted = service.trigger()
+
+            return {
+                "accepted": accepted,
+                "status": "scheduled" if accepted else "cooldown_active"
+            }
+
+        except RuntimeError as exc:
+            raise HTTPException(
+                status_code=409,
+                detail=str(exc)
+            ) from exc
 
     @app.get("/video")
     def video():
