@@ -1,0 +1,16 @@
+[Unit]
+Description=Raspberry Pi Camera API
+After=network.target
+
+[Service]
+Type=simple
+User=poim
+WorkingDirectory=/home/poim/pi_camera
+
+ExecStart=/home/poim/pi_camera/.venv/bin/python /home/poim/pi_camera/main.py --port 8000 --fps 30 --preview-fps 15 --preview-width 640 --bed-delay 3 --fill-delay 8
+
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -29,13 +29,13 @@ else
   exit 1
 fi
 
-echo '[1/4] Installing system packages (apt)...'
+echo '[1/5] Installing system packages (apt)...'
 "${APT[@]}" update
 "${APT[@]}" install -y \
   python3-venv python3-pip \
   python3-numpy python3-opencv python3-gpiozero python3-lgpio
 
-echo '[2/4] Creating virtual environment...'
+echo '[2/5] Creating virtual environment...'
 if [[ ! -d .venv ]]; then
   python3 -m venv --system-site-packages .venv
 elif [[ ! -x .venv/bin/python ]]; then
@@ -50,10 +50,10 @@ else
   echo 'Using existing .venv.'
 fi
 
-echo '[3/4] Installing project pip requirements...'
+echo '[3/5] Installing project pip requirements...'
 .venv/bin/python -m pip install -r requirements.txt
 
-echo '[4/4] Checking imports...'
+echo '[4/5] Checking imports...'
 .venv/bin/python - <<'PY'
 import cv2
 import numpy
@@ -64,6 +64,21 @@ print('OK: cv2, numpy, gpiozero, flask, tifffile import successfully')
 print('OpenCV:', cv2.__version__)
 PY
 
+echo '[5/5] Installing the service camera-api.service...'
+sudo cp camera-api.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now camera-api.service
+echo 'Waiting for service to initialize...'
+
+for i in {1..10}; do
+    if curl -fsS http://localhost:8000/status > /dev/null; then
+        echo 'FastAPI is ready!'
+        break
+    fi
+    sleep 1
+done
+
+sudo systemctl status camera-api.service --no-pager
+
 echo
 echo 'Setup complete.'
-echo "Start application: $PROJECT_DIR/.venv/bin/python $PROJECT_DIR/main.py"
