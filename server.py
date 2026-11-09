@@ -20,7 +20,6 @@ from capture import CaptureController
 
 
 class ConfigUpdate(BaseModel):
-    mode: str | None = None
     bed_delay_s: float | None = Field(default=None, ge=0, le=3600)
     fill_level_delay_s: float | None = Field(default=None, ge=0, le=3600)
 
@@ -37,7 +36,6 @@ class CameraService:
         self.output_dir = Path(output_dir)
         self.no_gpio = no_gpio
         self.delays = dict(bed=bed_delay, fill_level=fill_delay)
-        self.mode = "bed"
         self.lock = threading.RLock()
         self.camera: CameraManager | None = None
         self.capture: CaptureController | None = None
@@ -53,7 +51,6 @@ class CameraService:
             try:
                 camera.start()
                 capture.start()
-                capture.configure(mode=self.mode)
                 if not self.no_gpio:
                     from gpiozero import Button
                     button = Button(27, pull_up=False, bounce_time=0.05)
@@ -78,7 +75,6 @@ class CameraService:
                 self.button = None
             if self.capture is not None:
                 previous = self.capture.status()
-                self.mode = previous["mode"]
                 self.delays = previous["delays_s"]
                 self.capture.stop()
                 self.capture = None
@@ -100,28 +96,24 @@ class CameraService:
                 "pid": os.getpid() if camera else None,
                 "camera": camera_status,
                 "capture": capture_status,
-                "configured": {"mode": self.mode, "delays_s": dict(self.delays)} if not capture_status else None,
+                "configured": {"delays_s": dict(self.delays)} if not capture_status else None,
             }
 
     def configure(self, update: ConfigUpdate):
         with self.lock:
             if self.capture:
                 return self.capture.configure(**update.model_dump(exclude_none=True))
-            if update.mode is not None:
-                if update.mode not in CaptureController.MODES:
-                    raise ValueError("invalid mode")
-                self.mode = update.mode
             if update.bed_delay_s is not None:
                 self.delays["bed"] = update.bed_delay_s
             if update.fill_level_delay_s is not None:
                 self.delays["fill_level"] = update.fill_level_delay_s
-            return {"mode": self.mode, "delays_s": dict(self.delays)}
+            return {"delays_s": dict(self.delays)}
 
     def snapshot(self, mode: str | None):
         with self.lock:
             if self.capture is None:
                 raise RuntimeError("Camera is stopped")
-            return self.capture.manual_snapshot(mode=mode)
+            return self.capture.manual_snapshot()
 
     def trigger(self):
         """Simulate a GPIO button press."""
@@ -178,14 +170,20 @@ def create_app(service: CameraService, *, preview_width=640, preview_fps=5, jpeg
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.post("/snapshot", status_code=202)
-    def snapshot(payload: SnapshotRequest, x_api_token: str | None = Header(default=None)):
+    def snapshot(x_api_token: str | None = Header(default=None)):
         authenticate(x_api_token)
+
         try:
-            return {"queued": True, "request_id": service.snapshot(payload.mode)}
+            return {
+                "queued": True,
+                "request_id": service.snapshot()
+            }
+
         except RuntimeError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=409,
+                detail=str(exc)
+            ) from exc
 
     @app.post("/trigger", status_code=202)
     def trigger(x_api_token: str | None = Header(default=None)):
@@ -204,6 +202,7 @@ def create_app(service: CameraService, *, preview_width=640, preview_fps=5, jpeg
                 status_code=409,
                 detail=str(exc)
             ) from exc
+
 
     @app.get("/video")
     def video():

@@ -29,7 +29,7 @@ def main():
                             no_gpio=args.no_gpio)
     app = create_app(service, preview_width=args.preview_width, preview_fps=args.preview_fps,
                      autostart=args.autostart)
-    uvicorn.run(app, host=args.host, port=args.port, workers=1)
+    uvicorn.run(app, host=args.host, port=args.port, workers=1, timeout_graceful_shutdown=5,)
 
 
 if __name__ == "__main__":

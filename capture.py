@@ -29,11 +29,10 @@ class CaptureController:
     MODES = ("bed", "fill_level")
 
     def __init__(self, camera: CameraManager, output_dir: Path,
-                 bed_delay_s=2.0, fill_level_delay_s=5.0, cooldown_s=10.0):
+                 bed_delay_s=2.0, fill_level_delay_s=5.0, cooldown_s=3.0):
         self.camera = camera
         self.output_dir = Path(output_dir)
         self.delays = {"bed": float(bed_delay_s), "fill_level": float(fill_level_delay_s)}
-        self.mode = "bed"
         self.minimum_cooldown_s = float(cooldown_s)
         self._gpio_blocked_until = float("-inf")
         self._pending = []
@@ -52,44 +51,59 @@ class CaptureController:
         self._scheduler.start()
         self._writer.start()
 
-    def configure(self, mode=None, bed_delay_s=None, fill_level_delay_s=None):
-        # Validate before changing any state.
-        if mode is not None and mode not in self.MODES:
-            raise ValueError(f"mode must be one of {self.MODES}")
+    def configure(self, bed_delay_s=None, fill_level_delay_s=None):
         for delay in (bed_delay_s, fill_level_delay_s):
             if delay is not None and not (0 <= float(delay) <= 3600):
-                raise ValueError("delay must be between 0 and 3600 seconds")
+                raise ValueError(
+                    "delay must be between 0 and 3600 seconds"
+                )
+
         with self._condition:
-            if mode is not None:
-                self.mode = mode
             if bed_delay_s is not None:
                 self.delays["bed"] = float(bed_delay_s)
+
             if fill_level_delay_s is not None:
                 self.delays["fill_level"] = float(fill_level_delay_s)
+
         return self.status()
 
     def button_pressed(self):
-        """GPIO callback: schedule work immediately; never sleep or save here."""
+        """Schedule bed and fill-level captures."""
+
         with self._condition:
             now = time.monotonic()
+
             if now < self._gpio_blocked_until:
                 print("GPIO ignored: cooldown active", flush=True)
                 return False
-            cooldown = max(self.minimum_cooldown_s, *self.delays.values())
+
+            # Calculate cooldown
+            cooldown = max(
+                self.minimum_cooldown_s,
+                *self.delays.values()
+            )
+
             self._gpio_blocked_until = now + cooldown
-            mode = self.mode
-            delay = self.delays[mode]
-            self._enqueue_locked(mode, now + delay)
-        print(f"GPIO: scheduled {mode} in {delay:.2f} s", flush=True)
+
+            # Schedule both captures
+            for capture_type, delay in self.delays.items():
+                self._enqueue_locked(
+                    capture_type,
+                    now + delay
+                )
+
+        print(
+            f"GPIO: bed in {self.delays['bed']:.2f} s, "
+            f"fill_level in {self.delays['fill_level']:.2f} s",
+            flush=True
+        )
+
         return True
 
-    def manual_snapshot(self, mode=None):
-        """Manual snapshots are immediate and do not consume the GPIO cooldown."""
+    def manual_snapshot(self):
+        """Schedule an immediate manual snapshot."""
         with self._condition:
-            chosen_mode = mode or self.mode
-            if chosen_mode not in self.MODES:
-                raise ValueError(f"mode must be one of {self.MODES}")
-            request = self._enqueue_locked(chosen_mode, time.monotonic())
+            request = self._enqueue_locked("manual", time.monotonic())
         return request.request_id
 
     def _enqueue_locked(self, mode, due_at):
@@ -161,7 +175,6 @@ class CaptureController:
     def status(self):
         with self._condition:
             return {
-                "mode": self.mode,
                 "delays_s": dict(self.delays),
                 "cooldown_s": max(self.minimum_cooldown_s, *self.delays.values()),
                 "cooldown_remaining_s": round(max(0, self._gpio_blocked_until - time.monotonic()), 2),
