@@ -233,7 +233,8 @@ def create_app(service: CameraService, *, preview_width=640, preview_fps=5, jpeg
 
     @app.websocket("/ws/status")
     async def websocket_status(websocket: WebSocket):
-        if token and not hmac.compare_digest(websocket.query_params.get("token", ""), token):
+        if token and not hmac.compare_digest(
+                websocket.query_params.get("token", ""), token):
             await websocket.close(code=1008)
             return
         await websocket.accept()
@@ -241,7 +242,6 @@ def create_app(service: CameraService, *, preview_width=640, preview_fps=5, jpeg
         try:
             while True:
                 current = service.status()
-                # Exclude fast-changing frame telemetry to avoid 5 messages per second.
                 comparable = dict(current)
                 if current["camera"]:
                     comparable["camera"] = dict(current["camera"])
@@ -253,7 +253,16 @@ def create_app(service: CameraService, *, preview_width=640, preview_fps=5, jpeg
                 if comparable != previous:
                     await websocket.send_json(current)
                     previous = comparable
-                await asyncio.sleep(0.2)
+                # Listen for disconnect without blocking status updates
+                try:
+                    message = await asyncio.wait_for(
+                        websocket.receive(),
+                        timeout=0.2
+                    )
+                    if message["type"] == "websocket.disconnect":
+                        break
+                except asyncio.TimeoutError:
+                    pass
         except (WebSocketDisconnect, RuntimeError):
             pass
 
