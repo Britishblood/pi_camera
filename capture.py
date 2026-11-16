@@ -158,7 +158,7 @@ class CaptureController:
         rgb = cv2.cvtColor(frame.image, cv2.COLOR_BGR2RGB)
         try:
             with temp_path.open("wb") as f:
-                tifffile.imwrite(f, rgb, photometric="rgb", compression=None)
+                tifffile.imwrite(f, rgb, photometric="rgb", compression="zlib")
             temp_path.replace(path)
         finally:
             temp_path.unlink(missing_ok=True)
