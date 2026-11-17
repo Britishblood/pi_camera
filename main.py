@@ -19,7 +19,7 @@ def main():
     parser.add_argument("--fill-delay", type=float, default=5.0)
     parser.add_argument("--output", type=Path, default=Path(__file__).parent / "images")
     parser.add_argument("--host", default="0.0.0.0")
-    parser.add_argument("--port", type=int, default=8080)
+    parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--no-gpio", action="store_true")
     parser.add_argument("--autostart", action="store_true")
     args = parser.parse_args()
